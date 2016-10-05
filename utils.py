@@ -55,7 +55,7 @@ def center_crop(x, crop_h, crop_w=None, resize_w=64):
 def transform(image, npx=64, is_crop=True):
     # npx : # of pixels width/height of image
     if is_crop:
-        cropped_image = center_crop(image, npx)
+        cropped_image = center_crop(image, 256, resize_w=npx)
     else:
         cropped_image = image
     return np.array(cropped_image)/127.5 - 1.

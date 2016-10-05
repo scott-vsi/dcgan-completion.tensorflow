@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.4
+#!/usr/bin/env python
 
 # Original Version: Taehoon Kim (http://carpedm20.github.io)
 #   + Source: https://github.com/carpedm20/DCGAN-tensorflow/blob/e30539fb5e20d5a0fed40935853da97e9e55eee8/main.py
@@ -36,6 +36,6 @@ config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 with tf.Session(config=config) as sess:
     dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size,
-                  is_crop=False, checkpoint_dir=FLAGS.checkpoint_dir)
+                  is_crop=True, checkpoint_dir=FLAGS.checkpoint_dir)
 
     dcgan.train(FLAGS)

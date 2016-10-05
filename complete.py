@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.4
+#!/usr/bin/env python
 #
 # Brandon Amos (http://bamos.github.io)
 # License: MIT
@@ -30,6 +30,6 @@ assert(os.path.exists(args.checkpointDir))
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 with tf.Session(config=config) as sess:
-    dcgan = DCGAN(sess, image_size=args.imgSize,
+    dcgan = DCGAN(sess, image_size=args.imgSize, is_crop=True,
                   checkpoint_dir=args.checkpointDir, lam=args.lam)
     dcgan.complete(args)
