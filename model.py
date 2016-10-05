@@ -60,6 +60,7 @@ class DCGAN(object):
         self.g_bn1 = batch_norm(name='g_bn1')
         self.g_bn2 = batch_norm(name='g_bn2')
         self.g_bn3 = batch_norm(name='g_bn3')
+        #self.g_bn4 = batch_norm(name='g_bn4')
 
         self.checkpoint_dir = checkpoint_dir
         self.build_model()
@@ -119,8 +120,8 @@ class DCGAN(object):
         self.grad_complete_loss = tf.gradients(self.complete_loss, self.z)
 
     def train(self, config):
-        data = glob(os.path.join(config.dataset, "*.png"))
-        #np.random.shuffle(data)
+        data = glob(os.path.join(config.dataset, "*/*.JPEG"))
+        np.random.shuffle(data)
         assert(len(data) > 0)
 
         d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
@@ -167,7 +168,8 @@ Initializing a new one.
 """)
 
         for epoch in xrange(config.epoch):
-            data = glob(os.path.join(config.dataset, "*.png"))
+            #data = glob(os.path.join(config.dataset, "*/*.JPEG"))
+            np.random.shuffle(data)
             batch_idxs = min(len(data), config.train_size) // self.batch_size
 
             for idx in xrange(0, batch_idxs):
@@ -217,8 +219,10 @@ Initializing a new one.
 
 
     def complete(self, config):
-        os.makedirs(os.path.join(config.outDir, 'hats_imgs'), exist_ok=True)
-        os.makedirs(os.path.join(config.outDir, 'completed'), exist_ok=True)
+        if not os.path.exists(os.path.join(config.outDir, 'hats_imgs')):
+            os.makedirs(os.path.join(config.outDir, 'hats_imgs'))
+        if not os.path.exists(os.path.join(config.outDir, 'completed')):
+            os.makedirs(os.path.join(config.outDir, 'completed'))
 
         tf.initialize_all_variables().run()
 
@@ -291,7 +295,10 @@ Initializing a new one.
                 zhats = np.clip(zhats, -1, 1)
 
                 if i % 50 == 0:
-                    print(i, np.mean(loss[0:batchSz]))
+                    avg_loss = np.mean(loss[0:batchSz])
+                    if i == 0: print(i, avg_loss)
+                    else: print(i, avg_loss, prev_avg_loss-avg_loss)
+                    prev_avg_loss = avg_loss
                     imgName = os.path.join(config.outDir,
                                            'hats_imgs/{:04d}.png'.format(i))
                     nRows = np.ceil(batchSz/8)
@@ -318,7 +325,6 @@ Initializing a new one.
 
     def generator(self, z):
         self.z_, self.h0_w, self.h0_b = linear(z, self.gf_dim*8*4*4, 'g_h0_lin', with_w=True)
-
         self.h0 = tf.reshape(self.z_, [-1, 4, 4, self.gf_dim * 8])
         h0 = tf.nn.relu(self.g_bn0(self.h0))
 
@@ -358,6 +364,55 @@ Initializing a new one.
         h4 = conv2d_transpose(h3, [self.batch_size, 64, 64, 3], name='g_h4')
 
         return tf.nn.tanh(h4)
+
+    def generator_128(self, z):
+        self.z_, self.h0_w, self.h0_b = linear(z, self.gf_dim*16*4*4, 'g_h0_lin', with_w=True)
+        self.h0 = tf.reshape(self.z_, [-1, 4, 4, self.gf_dim * 16])
+        h0 = tf.nn.relu(self.g_bn0(self.h0))
+
+        self.h1, self.h1_w, self.h1_b = conv2d_transpose(h0,
+            [self.batch_size, 8, 8, self.gf_dim*8], name='g_h1', with_w=True)
+        h1 = tf.nn.relu(self.g_bn1(self.h1))
+
+        h2, self.h2_w, self.h2_b = conv2d_transpose(h1,
+            [self.batch_size, 16, 16, self.gf_dim*4], name='g_h2', with_w=True)
+        h2 = tf.nn.relu(self.g_bn2(h2))
+
+        h3, self.h3_w, self.h3_b = conv2d_transpose(h2,
+            [self.batch_size, 32, 32, self.gf_dim*2], name='g_h3', with_w=True)
+        h3 = tf.nn.relu(self.g_bn3(h3))
+
+        h4, self.h4_w, self.h4_b = conv2d_transpose(h3,
+            [self.batch_size, 64, 64, self.gf_dim*1], name='g_h4', with_w=True)
+        h4 = tf.nn.relu(self.g_bn4(h4))
+
+        h5, self.h5_w, self.h5_b = conv2d_transpose(h4,
+            [self.batch_size, 128, 128, 3], name='g_h5', with_w=True)
+
+        return tf.nn.tanh(h5)
+
+    def sampler_128(self, z, y=None):
+        tf.get_variable_scope().reuse_variables()
+
+        h0 = tf.reshape(linear(z, self.gf_dim*16*4*4, 'g_h0_lin'),
+                        [-1, 4, 4, self.gf_dim * 16])
+        h0 = tf.nn.relu(self.g_bn0(h0, train=False))
+
+        h1 = conv2d_transpose(h0, [self.batch_size, 8, 8, self.gf_dim*8], name='g_h1')
+        h1 = tf.nn.relu(self.g_bn1(h1, train=False))
+
+        h2 = conv2d_transpose(h1, [self.batch_size, 16, 16, self.gf_dim*4], name='g_h2')
+        h2 = tf.nn.relu(self.g_bn2(h2, train=False))
+
+        h3 = conv2d_transpose(h2, [self.batch_size, 32, 32, self.gf_dim*2], name='g_h3')
+        h3 = tf.nn.relu(self.g_bn3(h3, train=False))
+
+        h4 = conv2d_transpose(h3, [self.batch_size, 64, 64, self.gf_dim*1], name='g_h4')
+        h4 = tf.nn.relu(self.g_bn4(h4, train=False))
+
+        h5 = conv2d_transpose(h4, [self.batch_size, 128, 128, 3], name='g_h5')
+
+        return tf.nn.tanh(h5)
 
     def save(self, checkpoint_dir, step):
         if not os.path.exists(checkpoint_dir):
