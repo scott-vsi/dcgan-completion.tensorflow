@@ -269,6 +269,7 @@ Initializing a new one.
                 batch_images = batch_images.astype(np.float32)
 
             batch_mask = np.resize(mask, [self.batch_size] + self.image_shape)
+            #np.random.seed(1234)
             zhats = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim))
             v = 0
 
@@ -281,6 +282,11 @@ Initializing a new one.
                         os.path.join(config.outDir, 'masked.png'))
 
             for i in xrange(config.nIter):
+                scale = ((config.nIter-1)-i)/(config.nIter-1)
+                if i % 50 == 0:
+                    self.complete_loss = scale*self.contextual_loss + (1-scale)*self.perceptual_loss
+                    self.grad_complete_loss = tf.gradients(self.complete_loss, self.z)
+
                 fd = {
                     self.z: zhats,
                     self.mask: batch_mask,
@@ -288,11 +294,6 @@ Initializing a new one.
                 }
                 run = [self.complete_loss, self.grad_complete_loss, self.G]
                 loss, g, G_imgs = self.sess.run(run, feed_dict=fd)
-
-                v_prev = np.copy(v)
-                v = config.momentum*v - config.lr*g[0]
-                zhats += -config.momentum * v_prev + (1+config.momentum)*v
-                zhats = np.clip(zhats, -1, 1)
 
                 if i % 50 == 0:
                     avg_loss = np.mean(loss[0:batchSz])
@@ -310,6 +311,11 @@ Initializing a new one.
                     imgName = os.path.join(config.outDir,
                                            'completed/{:04d}.png'.format(i))
                     save_images(completeed[:batchSz,:,:,:], [nRows,nCols], imgName)
+
+                v_prev = np.copy(v)
+                v = scale*config.momentum*v - scale*config.lr*g[0]
+                zhats += -scale*config.momentum * v_prev + (1+scale*config.momentum)*v
+                zhats = np.clip(zhats, -1, 1)
 
     def discriminator(self, image, reuse=False):
         if reuse:
