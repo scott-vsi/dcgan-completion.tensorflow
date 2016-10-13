@@ -19,8 +19,9 @@ parser.add_argument('--lam', type=float, default=0.1)
 parser.add_argument('--checkpointDir', type=str, default='checkpoint')
 parser.add_argument('--outDir', type=str, default='completions')
 parser.add_argument('--maskType', type=str,
-                    choices=['random', 'center', 'left', 'full'],
+                    choices=['random', 'center', 'left', 'full', 'image'],
                     default='center')
+parser.add_argument('--mask', type=str)
 parser.add_argument('imgs', type=str, nargs='+')
 
 args = parser.parse_args()

@@ -19,7 +19,7 @@ pp = pprint.PrettyPrinter()
 get_stddev = lambda x, k_h, k_w: 1/math.sqrt(k_w*k_h*x.get_shape()[-1])
 
 def get_image(image_path, image_size, is_crop=True):
-    return transform(imread(image_path), image_size, is_crop)
+    return transform(imread(image_path), resize_w=image_size, is_crop=is_crop)
 
 def save_images(images, size, image_path):
     return imsave(inverse_transform(images), size, image_path)
@@ -43,22 +43,23 @@ def merge(images, size):
 def imsave(images, size, path):
     return scipy.misc.imsave(path, merge(images, size))
 
-def center_crop(x, crop_h, crop_w=None, resize_w=64):
+def center_crop(x, crop_h=None, crop_w=None):
+    if crop_h is None:
+        crop_h = min(x.shape[:2])
     if crop_w is None:
         crop_w = crop_h
     h, w = x.shape[:2]
+    crop_h, crop_w = min(crop_h, h), min(crop_w, w)
     j = int(round((h - crop_h)/2.))
     i = int(round((w - crop_w)/2.))
-    return scipy.misc.imresize(x[j:j+crop_h, i:i+crop_w],
-                               [resize_w, resize_w])
+    return x[j:j+crop_h, i:i+crop_w]
 
-def transform(image, npx=64, is_crop=True):
-    # npx : # of pixels width/height of image
-    if is_crop:
-        cropped_image = center_crop(image, 256, resize_w=npx)
-    else:
-        cropped_image = image
-    return np.array(cropped_image)/127.5 - 1.
+def transform(image, crop_h=None, crop_w=None, resize_w=64, is_crop=True):
+    # resize_w : # of pixels width/height of image
+    cropped_image = center_crop(image, crop_h, crop_w) if is_crop else image
+    resized_image = scipy.misc.imresize(cropped_image, [resize_w, resize_w])
+
+    return np.array(resized_image)/127.5 - 1.
 
 def inverse_transform(images):
     return (images+1.)/2.

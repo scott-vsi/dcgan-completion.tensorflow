@@ -10,6 +10,7 @@ import time
 from glob import glob
 import tensorflow as tf
 from six.moves import xrange
+import scipy.misc
 
 from ops import *
 from utils import *
@@ -251,6 +252,14 @@ Initializing a new one.
             mask[:,:c,:] = 0.0
         elif config.maskType == 'full':
             mask = np.ones(self.image_shape)
+        elif config.maskType == 'image': # [0,1] 0 is unknown
+            # deal with resizing interpolation
+            im = scipy.misc.imread(config.mask, mode='RGB')
+            cropped = center_crop(im) if self.is_crop else im
+            # resize works better if the dtype is not float
+            resized = scipy.misc.imresize(cropped, [self.image_size, self.image_size], interp='nearest')
+            # rescale byte encoded images 
+            mask = resized / 255.0 if np.max(resized) > 1 else resized
         else:
             assert(False)
 
