@@ -28,6 +28,7 @@ args = parser.parse_args()
 
 assert(os.path.exists(args.checkpointDir))
 
+tf.set_random_seed(1234)
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 with tf.Session(config=config) as sess:

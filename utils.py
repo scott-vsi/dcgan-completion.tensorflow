@@ -44,9 +44,12 @@ def imsave(images, size, path):
     return scipy.misc.imsave(path, merge(images, size))
 
 def center_crop(x, crop_h=None, crop_w=None):
-    if crop_h is None:
+    if crop_h is None and crop_w is None:
         crop_h = min(x.shape[:2])
-    if crop_w is None:
+        crop_w = crop_h
+    elif crop_h is None:
+        crop_h = crop_w
+    elif crop_w is None:
         crop_w = crop_h
     h, w = x.shape[:2]
     crop_h, crop_w = min(crop_h, h), min(crop_w, w)

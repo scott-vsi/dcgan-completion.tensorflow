@@ -39,8 +39,8 @@ class batch_norm(object):
         else:
             mean, var = self.ema_mean, self.ema_var
 
-        normed = tf.nn.batch_norm_with_global_normalization(
-                x, mean, var, self.beta, self.gamma, self.epsilon, scale_after_normalization=True)
+        normed = tf.nn.batch_normalization(
+                x, mean, var, self.beta, self.gamma, self.epsilon)
 
         return normed
 
