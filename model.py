@@ -143,7 +143,10 @@ class DCGAN(object):
             [self.z_sum, self.D_real_sum, self.d_loss_real_sum, self.d_loss_sum])
         self.writer = tf.train.SummaryWriter("./logs", self.sess.graph)
 
-        sample_z = np.random.uniform(-1, 1, size=(self.sample_size , self.z_dim))
+        #sample_z = np.random.uniform(-1, 1, size=(self.sample_size , self.z_dim))
+        sample_z = np.random.normal(0, 1, size=[self.sample_size, self.z_dim]) \
+                     .astype(np.float32)
+        sample_z /= np.expand_dims(np.linalg.norm(sample_z, axis=1, ord=2), axis=1)
         sample_files = data[0:self.sample_size]
         sample = [get_image(sample_file, self.image_size, is_crop=self.is_crop) for sample_file in sample_files]
         sample_images = np.array(sample).astype(np.float32)
@@ -185,8 +188,11 @@ Initializing a new one.
                          for batch_file in batch_files]
                 batch_images = np.array(batch).astype(np.float32)
 
-                batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]) \
+                #batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]) \
+                #            .astype(np.float32)
+                batch_z = np.random.normal(0, 1, [config.batch_size, self.z_dim]) \
                             .astype(np.float32)
+                batch_z /= np.expand_dims(np.linalg.norm(batch_z, axis=1, ord=2), axis=1)
 
                 # Update D network
                 _, summary_str = self.sess.run([d_optim, self.d_sum],
