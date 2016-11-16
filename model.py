@@ -285,7 +285,10 @@ Initializing a new one.
 
             batch_mask = np.resize(mask, [self.batch_size] + self.image_shape)
             #np.random.seed(1234)
-            zhats = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim))
+            #zhats = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim))
+            # spherical gaussian random variable
+            zhats = np.random.normal(0, 1, size=(self.batch_size, self.z_dim))
+            zhats /= np.expand_dims(np.linalg.norm(zhats, axis=1, ord=2), axis=1)
             v = 0
 
             nRows = np.ceil(batchSz/8)
@@ -315,11 +318,12 @@ Initializing a new one.
                     if i == 0: print(i, avg_loss)
                     else: print(i, avg_loss, prev_avg_loss-avg_loss)
                     prev_avg_loss = avg_loss
+
+                    G_imgs = self.sess.run(self.sampler, feed_dict={self.z: zhats})
+
                     imgName = os.path.join(config.outDir,
                                            'hats_imgs/{:04d}.png'.format(i))
-                    nRows = np.ceil(batchSz/8)
-                    nCols = 8
-                    G_imgs = self.sess.run(self.sampler, feed_dict={self.z: zhats})
+                    nRows,nCols = np.ceil(batchSz/8),8
                     save_images(G_imgs[:batchSz,:,:,:], [nRows,nCols], imgName)
 
                     inv_masked_hat_images = np.multiply(G_imgs, 1.0-batch_mask)
@@ -331,7 +335,9 @@ Initializing a new one.
                 v_prev = np.copy(v)
                 v = scale*config.momentum*v - scale*config.lr*g[0]
                 zhats += -scale*config.momentum * v_prev + (1+scale*config.momentum)*v
-                zhats = np.clip(zhats, -1, 1)
+                #zhats = np.clip(zhats, -1, 1)
+                # normalize spherical gaussian random variable
+                zhats /= np.expand_dims(np.linalg.norm(zhats, axis=1, ord=2), axis=1)
 
     def discriminator(self, image, should_reuse=False, is_train=True):
         if should_reuse:
