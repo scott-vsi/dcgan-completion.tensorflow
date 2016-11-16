@@ -82,7 +82,7 @@ class DCGAN(object):
         self.D_fake, self.D_logits_fake = self.discriminator(self.G, should_reuse=True)
 
         self.sampler = self.sampler(self.z, should_reuse=True, is_train=False)
-        self.D_fake_sample, self.D_logits_fake_sample = self.discriminator(self.sampler, should_reuse=True, is_train=False)
+        self.D_sample, self.D_logits_sample = self.discriminator(self.sampler, should_reuse=True, is_train=False)
 
         self.D_real_sum = tf.histogram_summary("D_real", self.D_real)
         self.D_fake_sum = tf.histogram_summary("D_fake", self.D_fake)
@@ -98,9 +98,8 @@ class DCGAN(object):
             tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_fake,
                                                     tf.ones_like(self.D_fake)))
 
-        self.g_loss_sample = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_fake_sample,
-                                                    tf.ones_like(self.D_fake_sample)))
+        self.g_loss_sample = tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_sample,
+                                                    tf.ones_like(self.D_sample))
 
         self.d_loss_real_sum = tf.scalar_summary("d_loss_real", self.d_loss_real)
         self.d_loss_fake_sum = tf.scalar_summary("d_loss_fake", self.d_loss_fake)
@@ -121,7 +120,8 @@ class DCGAN(object):
         self.mask = tf.placeholder(tf.float32, [None] + self.image_shape, name='mask')
         self.contextual_loss = tf.reduce_sum(
             tf.contrib.layers.flatten(
-                tf.abs(tf.mul(self.mask, self.sampler) - tf.mul(self.mask, self.images))), 1)
+                tf.abs(tf.mul(self.mask, self.sampler) - tf.mul(self.mask, self.images))), 1) / \
+            tf.reduce_sum(tf.contrib.layers.flatten(self.mask), 1)
         self.perceptual_loss = self.g_loss_sample
         self.complete_loss = (1.0-self.lam)*self.contextual_loss + self.lam*self.perceptual_loss
         self.grad_complete_loss = tf.gradients(self.complete_loss, self.z)
@@ -339,8 +339,11 @@ Initializing a new one.
                     save_images(completeed[:batchSz,:,:,:], [nRows,nCols], imgName)
 
                 v_prev = np.copy(v)
+                #v = config.momentum*v - config.lr*g[0]
+                #zhats += -config.momentum * v_prev + (1+config.momentum)*v
                 v = scale*config.momentum*v - scale*config.lr*g[0]
                 zhats += -scale*config.momentum * v_prev + (1+scale*config.momentum)*v
+
                 #zhats = np.clip(zhats, -1, 1)
                 # normalize spherical gaussian random variable
                 zhats /= np.expand_dims(np.linalg.norm(zhats, axis=1, ord=2), axis=1)
