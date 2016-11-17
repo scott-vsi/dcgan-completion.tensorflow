@@ -73,7 +73,8 @@ class DCGAN(object):
             tf.float32, [None] + self.image_shape, name='real_images')
         self.sample_images= tf.placeholder(
             tf.float32, [None] + self.image_shape, name='sample_images')
-        self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
+        #self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
+        self.z = tf.get_variable('z', [self.batch_size, self.z_dim])
         self.z_sum = tf.histogram_summary("z", self.z)
 
         self.generator = self.sampler
@@ -190,18 +191,18 @@ Initializing a new one.
 
                 #batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]) \
                 #            .astype(np.float32)
-                batch_z = np.random.normal(0, 1, [config.batch_size, self.z_dim]) \
-                            .astype(np.float32)
-                batch_z /= np.expand_dims(np.linalg.norm(batch_z, axis=1, ord=2), axis=1)
+                #batch_z = np.random.normal(0, 1, [config.batch_size, self.z_dim]) \
+                #            .astype(np.float32)
+                #batch_z /= np.expand_dims(np.linalg.norm(batch_z, axis=1, ord=2), axis=1)
+                self.z = tf.nn.l2_normalize(tf.random_normal(shape=(config.batch_size, self.z_dim), mean=0.0, stddev=1.0), dim=1)
 
                 # Update D network
                 _, summary_str = self.sess.run([d_optim, self.d_sum],
-                    feed_dict={ self.images: batch_images, self.z: batch_z })
+                    feed_dict={ self.images: batch_images })
                 self.writer.add_summary(summary_str, counter)
 
                 # Update G network
-                _, summary_str = self.sess.run([g_optim, self.g_sum],
-                    feed_dict={ self.z: batch_z })
+                _, summary_str = self.sess.run([g_optim, self.g_sum])
                 self.writer.add_summary(summary_str, counter)
 
                 # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
@@ -209,9 +210,9 @@ Initializing a new one.
                 #    feed_dict={ self.z: batch_z })
                 #self.writer.add_summary(summary_str, counter)
 
-                errD_fake = self.d_loss_fake.eval({self.z: batch_z})
+                errD_fake = self.d_loss_fake.eval()
                 errD_real = self.d_loss_real.eval({self.images: batch_images})
-                errG = self.g_loss.eval({self.z: batch_z})
+                errG = self.g_loss.eval()
 
                 counter += 1
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
@@ -236,11 +237,6 @@ Initializing a new one.
             os.makedirs(os.path.join(config.outDir, 'hats_imgs'))
         if not os.path.exists(os.path.join(config.outDir, 'completed')):
             os.makedirs(os.path.join(config.outDir, 'completed'))
-
-        tf.initialize_all_variables().run()
-
-        isLoaded = self.load(self.checkpoint_dir)
-        assert(isLoaded)
 
         # data = glob(os.path.join(config.dataset, "*.png"))
         nImgs = len(config.imgs)
@@ -275,6 +271,13 @@ Initializing a new one.
         else:
             assert(False)
 
+        optim = tf.train.AdamOptimizer(config.lr, beta1=config.momentum).minimize(self.complete_loss, var_list=[self.z])
+
+        tf.initialize_all_variables().run()
+
+        isLoaded = self.load(self.checkpoint_dir)
+        assert(isLoaded)
+
         for idx in xrange(0, batch_idxs):
             l = idx*self.batch_size
             u = min((idx+1)*self.batch_size, nImgs)
@@ -293,8 +296,8 @@ Initializing a new one.
             #np.random.seed(1234)
             #zhats = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim))
             # spherical gaussian random variable
-            zhats = np.random.normal(0, 1, size=(self.batch_size, self.z_dim))
-            zhats /= np.expand_dims(np.linalg.norm(zhats, axis=1, ord=2), axis=1)
+            #zhats = np.random.normal(0, 1, size=(self.batch_size, self.z_dim))
+            #zhats /= np.expand_dims(np.linalg.norm(zhats, axis=1, ord=2), axis=1)
             v = 0
 
             nRows = np.ceil(batchSz/8)
@@ -306,26 +309,26 @@ Initializing a new one.
                         os.path.join(config.outDir, 'masked.png'))
 
             for i in xrange(config.nIter):
-                if i % 50 == 0:
-                    scale = ((config.nIter-1)-i)/(config.nIter-1)
-                    self.complete_loss = (1.0-scale*self.lam)*self.contextual_loss + scale*self.lam*self.perceptual_loss
-                    self.grad_complete_loss = tf.gradients(self.complete_loss, self.z)
+                #if i % 50 == 0:
+                #    scale = ((config.nIter-1)-i)/(config.nIter-1)
+                #    self.complete_loss = (1.0-scale*self.lam)*self.contextual_loss + scale*self.lam*self.perceptual_loss
+                #    self.grad_complete_loss = tf.gradients(self.complete_loss, self.z)
 
                 fd = {
-                    self.z: zhats,
                     self.mask: batch_mask,
                     self.images: batch_images,
                 }
-                run = [self.complete_loss, self.grad_complete_loss]
-                loss, g = self.sess.run(run, feed_dict=fd)
+                #run = [self.complete_loss, self.grad_complete_loss]
+                #loss, g = self.sess.run(run, feed_dict=fd)
+                _ = self.sess.run(optim, feed_dict=fd)
 
-                if i % 50 == 0:
-                    avg_loss = np.mean(loss[0:batchSz])
-                    if i == 0: print(i, avg_loss)
-                    else: print(i, avg_loss, prev_avg_loss-avg_loss)
-                    prev_avg_loss = avg_loss
+                if i % 5 == 0:
+                    #avg_loss = np.mean(loss[0:batchSz])
+                    #if i == 0: print(i, avg_loss)
+                    #else: print(i, avg_loss, prev_avg_loss-avg_loss)
+                    #prev_avg_loss = avg_loss
 
-                    G_imgs = self.sess.run(self.sampler, feed_dict={self.z: zhats})
+                    G_imgs = self.sess.run(self.sampler)
 
                     imgName = os.path.join(config.outDir,
                                            'hats_imgs/{:04d}.png'.format(i))
@@ -338,15 +341,15 @@ Initializing a new one.
                                            'completed/{:04d}.png'.format(i))
                     save_images(completeed[:batchSz,:,:,:], [nRows,nCols], imgName)
 
-                v_prev = np.copy(v)
+                #v_prev = np.copy(v)
                 #v = config.momentum*v - config.lr*g[0]
                 #zhats += -config.momentum * v_prev + (1+config.momentum)*v
-                v = scale*config.momentum*v - scale*config.lr*g[0]
-                zhats += -scale*config.momentum * v_prev + (1+scale*config.momentum)*v
+                #v = scale*config.momentum*v - scale*config.lr*g[0]
+                #zhats += -scale*config.momentum * v_prev + (1+scale*config.momentum)*v
 
                 #zhats = np.clip(zhats, -1, 1)
                 # normalize spherical gaussian random variable
-                zhats /= np.expand_dims(np.linalg.norm(zhats, axis=1, ord=2), axis=1)
+                #zhats /= np.expand_dims(np.linalg.norm(zhats, axis=1, ord=2), axis=1)
 
     def discriminator(self, image, should_reuse=False, is_train=True):
         if should_reuse:
