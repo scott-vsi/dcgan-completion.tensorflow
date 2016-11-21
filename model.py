@@ -87,6 +87,7 @@ class DCGAN(object):
         self.D_fake, self.D_logits_fake = self.discriminator(self.G, should_reuse=True)
 
         self.const_sampler = self.generator(self.sample_z, should_reuse=True, is_train=False)
+        self.normalize_sample_z = tf.assign(self.sample_z, tf.nn.l2_normalize(self.sample_z, dim=1))
         self.D_sample, self.D_logits_sample = self.discriminator(self.const_sampler, should_reuse=True, is_train=False)
 
         self.D_real_sum = tf.histogram_summary("D_real", self.D_real)
@@ -324,15 +325,18 @@ Initializing a new one.
                 }
                 #run = [self.complete_loss, self.grad_complete_loss]
                 #loss, g = self.sess.run(run, feed_dict=fd)
-                _ = self.sess.run(optim, feed_dict=fd)
+                _, sample_z, G_imgs, contextual_loss, perceptual_loss, D_logits_sample = self.sess.run([optim, self.normalize_sample_z, 
+                    self.const_sampler, self.contextual_loss, self.perceptual_loss, self.D_logits_sample], feed_dict=fd)
+                #print "contextual_loss: ", contextual_loss
+                #print "perceptual_loss: ", perceptual_loss.T
+                #print "D_logits_sample: ", D_logits_sample.T
+                #print
 
                 if i % 5 == 0:
                     #avg_loss = np.mean(loss[0:batchSz])
                     #if i == 0: print(i, avg_loss)
                     #else: print(i, avg_loss, prev_avg_loss-avg_loss)
                     #prev_avg_loss = avg_loss
-
-                    G_imgs = self.sess.run(self.const_sampler)
 
                     imgName = os.path.join(config.outDir,
                                            'hats_imgs/{:04d}.png'.format(i))
