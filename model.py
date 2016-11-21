@@ -88,8 +88,7 @@ class DCGAN(object):
         self.D_fake, self.D_logits_fake = self.discriminator(self.G, should_reuse=True)
 
         self.const_sampler = self.sampler(self.sample_z, should_reuse=True, is_train=False)
-        self.random_sampler = self.sampler(self.z, should_reuse=True, is_train=False)
-        self.D_sample, self.D_logits_sample = self.discriminator(self.random_sampler, should_reuse=True, is_train=False)
+        self.D_sample, self.D_logits_sample = self.discriminator(self.const_sampler, should_reuse=True, is_train=False)
 
         self.D_real_sum = tf.histogram_summary("D_real", self.D_real)
         self.D_fake_sum = tf.histogram_summary("D_fake", self.D_fake)
