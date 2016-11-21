@@ -74,16 +74,22 @@ class DCGAN(object):
         self.sample_images= tf.placeholder(
             tf.float32, [None] + self.image_shape, name='sample_images')
         #self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
-        self.z = tf.get_variable('z', [self.batch_size, self.z_dim])
+        self.z = tf.nn.l2_normalize(tf.random_normal(shape=(self.batch_size, self.z_dim), mean=0.0, stddev=1.0), dim=1)
         self.z_sum = tf.histogram_summary("z", self.z)
+
+        sample_z = np.random.normal(0, 1, size=[self.sample_size, self.z_dim]) \
+                     .astype(np.float32)
+        sample_z /= np.expand_dims(np.linalg.norm(sample_z, axis=1, ord=2), axis=1)
+        self.sample_z = tf.get_variable('sample_z', initializer=sample_z)
 
         self.generator = self.sampler
         self.G = self.generator(self.z)
         self.D_real, self.D_logits_real = self.discriminator(self.images)
         self.D_fake, self.D_logits_fake = self.discriminator(self.G, should_reuse=True)
 
-        self.sampler = self.sampler(self.z, should_reuse=True, is_train=False)
-        self.D_sample, self.D_logits_sample = self.discriminator(self.sampler, should_reuse=True, is_train=False)
+        self.const_sampler = self.sampler(self.sample_z, should_reuse=True, is_train=False)
+        self.random_sampler = self.sampler(self.z, should_reuse=True, is_train=False)
+        self.D_sample, self.D_logits_sample = self.discriminator(self.random_sampler, should_reuse=True, is_train=False)
 
         self.D_real_sum = tf.histogram_summary("D_real", self.D_real)
         self.D_fake_sum = tf.histogram_summary("D_fake", self.D_fake)
@@ -121,7 +127,7 @@ class DCGAN(object):
         self.mask = tf.placeholder(tf.float32, [None] + self.image_shape, name='mask')
         self.contextual_loss = tf.reduce_sum(
             tf.contrib.layers.flatten(
-                tf.abs(tf.mul(self.mask, self.sampler) - tf.mul(self.mask, self.images))), 1) / \
+                tf.abs(tf.mul(self.mask, self.const_sampler) - tf.mul(self.mask, self.images))), 1) / \
             tf.reduce_sum(tf.contrib.layers.flatten(self.mask), 1)
         self.perceptual_loss = self.g_loss_sample
         self.complete_loss = (1.0-self.lam)*self.contextual_loss + self.lam*self.perceptual_loss
@@ -145,9 +151,9 @@ class DCGAN(object):
         self.writer = tf.train.SummaryWriter("./logs", self.sess.graph)
 
         #sample_z = np.random.uniform(-1, 1, size=(self.sample_size , self.z_dim))
-        sample_z = np.random.normal(0, 1, size=[self.sample_size, self.z_dim]) \
-                     .astype(np.float32)
-        sample_z /= np.expand_dims(np.linalg.norm(sample_z, axis=1, ord=2), axis=1)
+        #sample_z = np.random.normal(0, 1, size=[self.sample_size, self.z_dim]) \
+        #             .astype(np.float32)
+        #sample_z /= np.expand_dims(np.linalg.norm(sample_z, axis=1, ord=2), axis=1)
         sample_files = data[0:self.sample_size]
         sample = [get_image(sample_file, self.image_size, is_crop=self.is_crop) for sample_file in sample_files]
         sample_images = np.array(sample).astype(np.float32)
@@ -194,7 +200,6 @@ Initializing a new one.
                 #batch_z = np.random.normal(0, 1, [config.batch_size, self.z_dim]) \
                 #            .astype(np.float32)
                 #batch_z /= np.expand_dims(np.linalg.norm(batch_z, axis=1, ord=2), axis=1)
-                self.z = tf.nn.l2_normalize(tf.random_normal(shape=(config.batch_size, self.z_dim), mean=0.0, stddev=1.0), dim=1)
 
                 # Update D network
                 _, summary_str = self.sess.run([d_optim, self.d_sum],
@@ -221,8 +226,8 @@ Initializing a new one.
 
                 if np.mod(counter, 100) == 1:
                     samples, d_loss, g_loss = self.sess.run(
-                        [self.sampler, self.d_loss, self.g_loss],
-                        feed_dict={self.z: sample_z, self.images: sample_images}
+                        [self.const_sampler, self.d_loss, self.g_loss],
+                        feed_dict={self.images: sample_images}
                     )
                     save_images(samples, [8, 8],
                                 './samples/train_{:02d}_{:04d}.png'.format(epoch, idx))
@@ -271,7 +276,7 @@ Initializing a new one.
         else:
             assert(False)
 
-        optim = tf.train.AdamOptimizer(config.lr, beta1=config.momentum).minimize(self.complete_loss, var_list=[self.z])
+        optim = tf.train.AdamOptimizer(config.lr, beta1=config.momentum).minimize(self.complete_loss, var_list=[self.sample_z])
 
         tf.initialize_all_variables().run()
 
@@ -328,7 +333,7 @@ Initializing a new one.
                     #else: print(i, avg_loss, prev_avg_loss-avg_loss)
                     #prev_avg_loss = avg_loss
 
-                    G_imgs = self.sess.run(self.sampler)
+                    G_imgs = self.sess.run(self.const_sampler)
 
                     imgName = os.path.join(config.outDir,
                                            'hats_imgs/{:04d}.png'.format(i))
