@@ -82,12 +82,11 @@ class DCGAN(object):
         sample_z /= np.expand_dims(np.linalg.norm(sample_z, axis=1, ord=2), axis=1)
         self.sample_z = tf.get_variable('sample_z', initializer=sample_z)
 
-        self.generator = self.sampler
         self.G = self.generator(self.z)
         self.D_real, self.D_logits_real = self.discriminator(self.images)
         self.D_fake, self.D_logits_fake = self.discriminator(self.G, should_reuse=True)
 
-        self.const_sampler = self.sampler(self.sample_z, should_reuse=True, is_train=False)
+        self.const_sampler = self.generator(self.sample_z, should_reuse=True, is_train=False)
         self.D_sample, self.D_logits_sample = self.discriminator(self.const_sampler, should_reuse=True, is_train=False)
 
         self.D_real_sum = tf.histogram_summary("D_real", self.D_real)
@@ -275,7 +274,8 @@ Initializing a new one.
         else:
             assert(False)
 
-        optim = tf.train.AdamOptimizer(config.lr, beta1=config.momentum).minimize(self.complete_loss, var_list=[self.sample_z])
+        optim = tf.train.AdamOptimizer(config.lr, beta1=config.momentum) \
+                .minimize(self.complete_loss, var_list=[self.sample_z])
 
         tf.initialize_all_variables().run()
 
@@ -377,7 +377,7 @@ Initializing a new one.
 
         return tf.nn.sigmoid(h4), h4
 
-    def sampler(self, z, should_reuse=False, is_train=True):
+    def generator(self, z, should_reuse=False, is_train=True):
         if should_reuse:
             tf.get_variable_scope().reuse_variables()
 
@@ -398,7 +398,7 @@ Initializing a new one.
 
         return tf.nn.tanh(h4)
 
-    def sampler_128(self, z, should_reuse=False, is_train=True):
+    def generator_128(self, z, should_reuse=False, is_train=True):
         if should_reuse:
             tf.get_variable_scope().reuse_variables()
 
