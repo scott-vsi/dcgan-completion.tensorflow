@@ -87,8 +87,8 @@ class DCGAN(object):
         self.D_fake, self.D_logits_fake = self.discriminator(self.G, should_reuse=True)
 
         self.const_sampler = self.generator(self.sample_z, should_reuse=True, is_train=False)
-        self.normalize_sample_z = tf.assign(self.sample_z, tf.nn.l2_normalize(self.sample_z, dim=1))
         self.D_sample, self.D_logits_sample = self.discriminator(self.const_sampler, should_reuse=True, is_train=False)
+        self.normalize_sample_z = tf.assign(self.sample_z, tf.nn.l2_normalize(self.sample_z, dim=1))
 
         self.D_real_sum = tf.histogram_summary("D_real", self.D_real)
         self.D_fake_sum = tf.histogram_summary("D_fake", self.D_fake)
@@ -276,7 +276,7 @@ Initializing a new one.
             assert(False)
 
         optim = tf.train.AdamOptimizer(config.lr, beta1=config.momentum) \
-                .minimize(self.complete_loss, var_list=[self.sample_z])
+                .minimize(self.complete_loss, var_list=[self.sample_z], grad_loss=self.grad_complete_loss[0])
 
         tf.initialize_all_variables().run()
 
@@ -325,8 +325,10 @@ Initializing a new one.
                 }
                 #run = [self.complete_loss, self.grad_complete_loss]
                 #loss, g = self.sess.run(run, feed_dict=fd)
-                _, sample_z, G_imgs, contextual_loss, perceptual_loss, D_logits_sample = self.sess.run([optim, self.normalize_sample_z, 
-                    self.const_sampler, self.contextual_loss, self.perceptual_loss, self.D_logits_sample], feed_dict=fd)
+                (_, sample_z, G_imgs, 
+                    contextual_loss, perceptual_loss, D_logits_sample) = self.sess.run([
+                        optim, self.normalize_sample_z, self.const_sampler, 
+                        self.contextual_loss, self.perceptual_loss, self.D_logits_sample], feed_dict=fd)
                 #print "contextual_loss: ", contextual_loss
                 #print "perceptual_loss: ", perceptual_loss.T
                 #print "D_logits_sample: ", D_logits_sample.T
@@ -359,12 +361,12 @@ Initializing a new one.
                 # normalize spherical gaussian random variable
                 #zhats /= np.expand_dims(np.linalg.norm(zhats, axis=1, ord=2), axis=1)
 
-    def discriminator(self, image, should_reuse=False, is_train=True):
+    def discriminator(self, image, should_reuse=False, is_train=True, with_instance_noise=True):
         if should_reuse:
             tf.get_variable_scope().reuse_variables()
 
         # switch for when doing completion (i think we want this)
-        if is_train:
+        if with_instance_noise:
             # instance noise
             additive_gaussian_noise = tf.random_normal(shape=(self.image_size,self.image_size), mean=0.0, stddev=0.04)
             additive_gaussian_noise = tf.expand_dims(tf.expand_dims(additive_gaussian_noise, dim=0), dim=-1)
