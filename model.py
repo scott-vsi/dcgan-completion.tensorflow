@@ -73,7 +73,6 @@ class DCGAN(object):
             tf.float32, [None] + self.image_shape, name='real_images')
         self.sample_images= tf.placeholder(
             tf.float32, [None] + self.image_shape, name='sample_images')
-        #self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
         self.z = tf.nn.l2_normalize(tf.random_normal(shape=(self.batch_size, self.z_dim), mean=0.0, stddev=1.0), dim=1)
         self.z_sum = tf.histogram_summary("z", self.z)
 
@@ -149,10 +148,6 @@ class DCGAN(object):
             [self.z_sum, self.D_real_sum, self.d_loss_real_sum, self.d_loss_sum])
         self.writer = tf.train.SummaryWriter("./logs", self.sess.graph)
 
-        #sample_z = np.random.uniform(-1, 1, size=(self.sample_size , self.z_dim))
-        #sample_z = np.random.normal(0, 1, size=[self.sample_size, self.z_dim]) \
-        #             .astype(np.float32)
-        #sample_z /= np.expand_dims(np.linalg.norm(sample_z, axis=1, ord=2), axis=1)
         sample_files = data[0:self.sample_size]
         sample = [get_image(sample_file, self.image_size, is_crop=self.is_crop) for sample_file in sample_files]
         sample_images = np.array(sample).astype(np.float32)
@@ -193,12 +188,6 @@ Initializing a new one.
                 batch = [get_image(batch_file, self.image_size, is_crop=self.is_crop)
                          for batch_file in batch_files]
                 batch_images = np.array(batch).astype(np.float32)
-
-                #batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]) \
-                #            .astype(np.float32)
-                #batch_z = np.random.normal(0, 1, [config.batch_size, self.z_dim]) \
-                #            .astype(np.float32)
-                #batch_z /= np.expand_dims(np.linalg.norm(batch_z, axis=1, ord=2), axis=1)
 
                 # Update D network
                 _, summary_str = self.sess.run([d_optim, self.d_sum],
@@ -298,11 +287,6 @@ Initializing a new one.
                 batch_images = batch_images.astype(np.float32)
 
             batch_mask = np.resize(mask, [self.batch_size] + self.image_shape)
-            #np.random.seed(1234)
-            #zhats = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim))
-            # spherical gaussian random variable
-            #zhats = np.random.normal(0, 1, size=(self.batch_size, self.z_dim))
-            #zhats /= np.expand_dims(np.linalg.norm(zhats, axis=1, ord=2), axis=1)
             v = 0
 
             nRows = np.ceil(batchSz/8)
@@ -314,21 +298,15 @@ Initializing a new one.
                         os.path.join(config.outDir, 'masked.png'))
 
             for i in xrange(config.nIter):
-                #if i % 50 == 0:
-                #    scale = ((config.nIter-1)-i)/(config.nIter-1)
-                #    self.complete_loss = (1.0-scale*self.lam)*self.contextual_loss + scale*self.lam*self.perceptual_loss
-                #    self.grad_complete_loss = tf.gradients(self.complete_loss, self.z)
-
                 fd = {
                     self.mask: batch_mask,
                     self.images: batch_images,
                 }
-                #run = [self.complete_loss, self.grad_complete_loss]
-                #loss, g = self.sess.run(run, feed_dict=fd)
                 (_, sample_z, G_imgs, 
-                    contextual_loss, perceptual_loss, D_logits_sample) = self.sess.run([
+                    loss, contextual_loss, perceptual_loss, D_logits_sample) = self.sess.run([
                         optim, self.normalize_sample_z, self.const_sampler, 
-                        self.contextual_loss, self.perceptual_loss, self.D_logits_sample], feed_dict=fd)
+                        self.complete_loss, self.contextual_loss, self.perceptual_loss, self.D_logits_sample], 
+                        feed_dict=fd)
                 #print "contextual_loss: ", contextual_loss
                 #print "perceptual_loss: ", perceptual_loss.T
                 #print "D_logits_sample: ", D_logits_sample.T
@@ -351,15 +329,6 @@ Initializing a new one.
                                            'completed/{:04d}.png'.format(i))
                     save_images(completeed[:batchSz,:,:,:], [nRows,nCols], imgName)
 
-                #v_prev = np.copy(v)
-                #v = config.momentum*v - config.lr*g[0]
-                #zhats += -config.momentum * v_prev + (1+config.momentum)*v
-                #v = scale*config.momentum*v - scale*config.lr*g[0]
-                #zhats += -scale*config.momentum * v_prev + (1+scale*config.momentum)*v
-
-                #zhats = np.clip(zhats, -1, 1)
-                # normalize spherical gaussian random variable
-                #zhats /= np.expand_dims(np.linalg.norm(zhats, axis=1, ord=2), axis=1)
 
     def discriminator(self, image, should_reuse=False, is_train=True, with_instance_noise=True):
         if should_reuse:
