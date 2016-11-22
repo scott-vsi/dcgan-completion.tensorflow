@@ -85,8 +85,8 @@ class DCGAN(object):
         self.D_real, self.D_logits_real = self.discriminator(self.images)
         self.D_fake, self.D_logits_fake = self.discriminator(self.G, should_reuse=True)
 
-        self.const_sampler = self.generator(self.sample_z, should_reuse=True, is_train=False)
-        self.D_sample, self.D_logits_sample = self.discriminator(self.const_sampler, should_reuse=True, is_train=False)
+        self.sampler = self.generator(self.sample_z, should_reuse=True, is_train=False)
+        self.D_sample, self.D_logits_sample = self.discriminator(self.sampler, should_reuse=True, is_train=False)
         self.normalize_sample_z = tf.assign(self.sample_z, tf.nn.l2_normalize(self.sample_z, dim=1))
 
         self.D_real_sum = tf.histogram_summary("D_real", self.D_real)
@@ -125,7 +125,7 @@ class DCGAN(object):
         self.mask = tf.placeholder(tf.float32, [None] + self.image_shape, name='mask')
         self.contextual_loss = tf.reduce_sum(
             tf.contrib.layers.flatten(
-                tf.abs(tf.mul(self.mask, self.const_sampler) - tf.mul(self.mask, self.images))), 1) / \
+                tf.abs(tf.mul(self.mask, self.sampler) - tf.mul(self.mask, self.images))), 1) / \
             tf.reduce_sum(tf.contrib.layers.flatten(self.mask), 1)
         self.perceptual_loss = self.g_loss_sample
         self.complete_loss = (1.0-self.lam)*self.contextual_loss + self.lam*self.perceptual_loss
@@ -214,7 +214,7 @@ Initializing a new one.
 
                 if np.mod(counter, 100) == 1:
                     samples, d_loss, g_loss = self.sess.run(
-                        [self.const_sampler, self.d_loss, self.g_loss],
+                        [self.sampler, self.d_loss, self.g_loss],
                         feed_dict={self.images: sample_images}
                     )
                     save_images(samples, [8, 8],
@@ -304,7 +304,7 @@ Initializing a new one.
                 }
                 (_, sample_z, G_imgs, 
                     loss, contextual_loss, perceptual_loss, D_logits_sample) = self.sess.run([
-                        optim, self.normalize_sample_z, self.const_sampler, 
+                        optim, self.normalize_sample_z, self.sampler, 
                         self.complete_loss, self.contextual_loss, self.perceptual_loss, self.D_logits_sample], 
                         feed_dict=fd)
                 #print "contextual_loss: ", contextual_loss
