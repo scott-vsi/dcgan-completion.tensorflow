@@ -75,6 +75,8 @@ class DCGAN(object):
             tf.float32, [None] + self.image_shape, name='sample_images')
         self.z = tf.nn.l2_normalize(tf.random_normal(shape=(self.batch_size, self.z_dim), mean=0.0, stddev=1.0), dim=1)
         self.z_sum = tf.histogram_summary("z", self.z)
+        self.z2 = tf.nn.l2_normalize(tf.random_normal(shape=(self.batch_size*2, self.z_dim), mean=0.0, stddev=1.0), dim=1)
+        self.z2_sum = tf.histogram_summary("z2", self.z2)
 
         sample_z = np.random.normal(0, 1, size=[self.sample_size, self.z_dim]) \
                      .astype(np.float32)
@@ -82,8 +84,10 @@ class DCGAN(object):
         self.sample_z = tf.get_variable('sample_z', initializer=sample_z)
 
         self.G = self.generator(self.z)
+        self.G2 = self.generator(self.z2) # ugh so much repetition
         self.D_real, self.D_logits_real = self.discriminator(self.images)
         self.D_fake, self.D_logits_fake = self.discriminator(self.G, should_reuse=True)
+        self.D2_fake, self.D2_logits_fake = self.discriminator(self.G2, should_reuse=True)
 
         self.sampler = self.generator(self.sample_z, should_reuse=True, is_train=False)
         self.D_sample, self.D_logits_sample = self.discriminator(self.sampler, should_reuse=True, is_train=False)
@@ -91,7 +95,9 @@ class DCGAN(object):
 
         self.D_real_sum = tf.histogram_summary("D_real", self.D_real)
         self.D_fake_sum = tf.histogram_summary("D_fake", self.D_fake)
+        self.D2_fake_sum = tf.histogram_summary("D2_fake", self.D2_fake)
         self.G_sum = tf.image_summary("G", self.G)
+        self.G2_sum = tf.image_summary("G2", self.G2)
 
         self.d_loss_real = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_real,
@@ -100,8 +106,8 @@ class DCGAN(object):
             tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_fake,
                                                     tf.zeros_like(self.D_fake)))
         self.g_loss = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_fake,
-                                                    tf.ones_like(self.D_fake)))
+            tf.nn.sigmoid_cross_entropy_with_logits(self.D2_logits_fake,
+                                                    tf.ones_like(self.D2_fake)))
 
         self.g_loss_sample = tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_sample,
                                                     tf.ones_like(self.D_sample))
@@ -144,9 +150,9 @@ class DCGAN(object):
         tf.initialize_all_variables().run()
 
         self.g_sum = tf.merge_summary(
-            [self.z_sum, self.D_fake_sum, self.G_sum, self.d_loss_fake_sum, self.g_loss_sum])
+            [self.z2_sum, self.D2_fake_sum, self.G2_sum, self.g_loss_sum])
         self.d_sum = tf.merge_summary(
-            [self.z_sum, self.D_real_sum, self.d_loss_real_sum, self.d_loss_sum])
+            [self.z_sum, self.D_real_sum, self.D_fake_sum, self.d_loss_real_sum, self.d_loss_fake_sum, self.d_loss_sum])
         self.writer = tf.train.SummaryWriter("./logs", self.sess.graph)
 
         sample_files = data[0:self.sample_size]
@@ -196,17 +202,9 @@ Initializing a new one.
                 self.writer.add_summary(summary_str, counter)
 
                 # Update G network
+                # ensure generator sees as many images as the discriminator
                 _, errG, summary_str = self.sess.run([g_optim, self.g_loss, self.g_sum])
                 self.writer.add_summary(summary_str, counter)
-
-                # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
-                #errG, summary_str = self.sess.run([g_optim, self.g_sum],
-                #    feed_dict={ self.z: batch_z })
-                #self.writer.add_summary(summary_str, counter)
-
-                #errD_fake = self.d_loss_fake.eval()
-                #errD_real = self.d_loss_real.eval({self.images: batch_images})
-                #errG = self.g_loss.eval()
 
                 counter += 1
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
