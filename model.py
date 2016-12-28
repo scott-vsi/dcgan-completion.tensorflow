@@ -345,10 +345,10 @@ Initializing a new one.
             max_per_image = tf.expand_dims(tf.expand_dims(tf.expand_dims(max_per_image, dim=-1), dim=-1), dim=-1)
             image = tf.div(image, tf.tile(max_per_image, multiples=(1,self.image_size,self.image_size,self.c_dim)))
 
-        h0 = tf.nn.elu(conv2d(image, self.df_dim, name='d_h0_conv'))
-        h1 = tf.nn.elu(self.d_bn1(conv2d(h0, self.df_dim*2, name='d_h1_conv'), train=is_train))
-        h2 = tf.nn.elu(self.d_bn2(conv2d(h1, self.df_dim*4, name='d_h2_conv'), train=is_train))
-        h3 = tf.nn.elu(self.d_bn3(conv2d(h2, self.df_dim*8, name='d_h3_conv'), train=is_train))
+        h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
+        h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim*2, name='d_h1_conv'), train=is_train))
+        h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim*4, name='d_h2_conv'), train=is_train))
+        h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim*8, name='d_h3_conv'), train=is_train))
         h4 = linear(tf.reshape(h3, [-1, 8192]), 1, 'd_h3_lin')
 
         return tf.nn.sigmoid(h4), h4
@@ -359,16 +359,16 @@ Initializing a new one.
 
         h0 = tf.reshape(linear(z, self.gf_dim*8*4*4, 'g_h0_lin'),
                         [-1, 4, 4, self.gf_dim * 8])
-        h0 = tf.nn.elu(self.g_bn0(h0, train=is_train))
+        h0 = tf.nn.relu(self.g_bn0(h0, train=is_train))
 
         h1 = conv2d_transpose(h0, [self.batch_size, 8, 8, self.gf_dim*4], name='g_h1')
-        h1 = tf.nn.elu(self.g_bn1(h1, train=is_train))
+        h1 = tf.nn.relu(self.g_bn1(h1, train=is_train))
 
         h2 = conv2d_transpose(h1, [self.batch_size, 16, 16, self.gf_dim*2], name='g_h2')
-        h2 = tf.nn.elu(self.g_bn2(h2, train=is_train))
+        h2 = tf.nn.relu(self.g_bn2(h2, train=is_train))
 
         h3 = conv2d_transpose(h2, [self.batch_size, 32, 32, self.gf_dim*1], name='g_h3')
-        h3 = tf.nn.elu(self.g_bn3(h3, train=is_train))
+        h3 = tf.nn.relu(self.g_bn3(h3, train=is_train))
 
         h4 = conv2d_transpose(h3, [self.batch_size, 64, 64, 3], name='g_h4')
 
