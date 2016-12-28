@@ -136,10 +136,11 @@ class DCGAN(object):
         np.random.shuffle(data)
         assert(len(data) > 0)
 
+        global_step = tf.Variable(0, dtype=tf.int32, trainable=False)
         d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
                           .minimize(self.d_loss, var_list=self.d_vars)
         g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
-                          .minimize(self.g_loss, var_list=self.g_vars)
+                          .minimize(self.g_loss, var_list=self.g_vars, global_step=global_step)
         tf.initialize_all_variables().run()
 
         self.g_sum = tf.merge_summary(
