@@ -359,16 +359,16 @@ Initializing a new one.
 
         h0 = tf.reshape(linear(z, self.gf_dim*8*4*4, 'g_h0_lin'),
                         [-1, 4, 4, self.gf_dim * 8])
-        h0 = tf.nn.relu(self.g_bn0(h0, train=is_train))
+        h0 = lrelu(self.g_bn0(h0, train=is_train))
 
         h1 = conv2d_transpose(h0, [self.batch_size, 8, 8, self.gf_dim*4], name='g_h1')
-        h1 = tf.nn.relu(self.g_bn1(h1, train=is_train))
+        h1 = lrelu(self.g_bn1(h1, train=is_train))
 
         h2 = conv2d_transpose(h1, [self.batch_size, 16, 16, self.gf_dim*2], name='g_h2')
-        h2 = tf.nn.relu(self.g_bn2(h2, train=is_train))
+        h2 = lrelu(self.g_bn2(h2, train=is_train))
 
         h3 = conv2d_transpose(h2, [self.batch_size, 32, 32, self.gf_dim*1], name='g_h3')
-        h3 = tf.nn.relu(self.g_bn3(h3, train=is_train))
+        h3 = lrelu(self.g_bn3(h3, train=is_train))
 
         h4 = conv2d_transpose(h3, [self.batch_size, 64, 64, 3], name='g_h4')
 
