@@ -84,10 +84,13 @@ class DCGAN(object):
         self.sample_z = tf.get_variable('sample_z', initializer=sample_z)
 
         self.G = self.generator(self.z)
-        self.G2 = self.generator(self.z2) # ugh so much repetition
+        self.G2 = tf.concat(0, [self.generator(self.z2[:self.batch_size,...], should_reuse=True),
+            self.generator(self.z2[self.batch_size:,...], should_reuse=True)]) # ugh so much repetition
         self.D_real, self.D_logits_real = self.discriminator(self.images)
         self.D_fake, self.D_logits_fake = self.discriminator(self.G, should_reuse=True)
-        self.D2_fake, self.D2_logits_fake = self.discriminator(self.G2, should_reuse=True)
+        self.D2_fake, self.D2_logits_fake = [tf.concat(0, [l0, l1]) for l0,l1 in 
+            zip(self.discriminator(self.G2[:self.batch_size,...], should_reuse=True), 
+                self.discriminator(self.G2[self.batch_size:,...], should_reuse=True))]
 
         self.sampler = self.generator(self.sample_z, should_reuse=True, is_train=False)
         self.D_sample, self.D_logits_sample = self.discriminator(self.sampler, should_reuse=True, is_train=False)
@@ -330,71 +333,74 @@ Initializing a new one.
 
 
     def discriminator(self, image, should_reuse=False, is_train=True, with_instance_noise=True):
-        if should_reuse:
-            tf.get_variable_scope().reuse_variables()
+        with tf.variable_scope('discriminator'):
+            if should_reuse:
+                tf.get_variable_scope().reuse_variables()
 
-        # switch for when doing completion (i think we want this)
-        if with_instance_noise:
-            # instance noise
-            additive_gaussian_noise = tf.random_normal(shape=(self.image_size,self.image_size), mean=0.0, stddev=0.04)
-            additive_gaussian_noise = tf.expand_dims(tf.expand_dims(additive_gaussian_noise, dim=0), dim=-1)
-            image = tf.add(image, tf.tile(additive_gaussian_noise, multiples=(self.batch_size,1,1,self.c_dim)))
-            max_per_image = tf.reduce_max(tf.abs(image), reduction_indices=(1,2,3))
-            max_per_image = tf.expand_dims(tf.expand_dims(tf.expand_dims(max_per_image, dim=-1), dim=-1), dim=-1)
-            image = tf.div(image, tf.tile(max_per_image, multiples=(1,self.image_size,self.image_size,self.c_dim)))
+            # switch for when doing completion (i think we want this)
+            if with_instance_noise:
+                # instance noise
+                additive_gaussian_noise = tf.random_normal(shape=(self.image_size,self.image_size), mean=0.0, stddev=0.04)
+                additive_gaussian_noise = tf.expand_dims(tf.expand_dims(additive_gaussian_noise, dim=0), dim=-1)
+                image = tf.add(image, tf.tile(additive_gaussian_noise, multiples=(self.batch_size,1,1,self.c_dim)))
+                max_per_image = tf.reduce_max(tf.abs(image), reduction_indices=(1,2,3))
+                max_per_image = tf.expand_dims(tf.expand_dims(tf.expand_dims(max_per_image, dim=-1), dim=-1), dim=-1)
+                image = tf.div(image, tf.tile(max_per_image, multiples=(1,self.image_size,self.image_size,self.c_dim)))
 
-        h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
-        h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim*2, name='d_h1_conv'), train=is_train))
-        h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim*4, name='d_h2_conv'), train=is_train))
-        h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim*8, name='d_h3_conv'), train=is_train))
-        h4 = linear(tf.reshape(h3, [-1, 8192]), 1, 'd_h3_lin')
+            h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
+            h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim*2, name='d_h1_conv'), train=is_train))
+            h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim*4, name='d_h2_conv'), train=is_train))
+            h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim*8, name='d_h3_conv'), train=is_train))
+            h4 = linear(tf.reshape(h3, [-1, 8192]), 1, 'd_h3_lin')
 
-        return tf.nn.sigmoid(h4), h4
+            return tf.nn.sigmoid(h4), h4
 
     def generator(self, z, should_reuse=False, is_train=True):
-        if should_reuse:
-            tf.get_variable_scope().reuse_variables()
+        with tf.variable_scope('generator'):
+            if should_reuse:
+                tf.get_variable_scope().reuse_variables()
 
-        h0 = tf.reshape(linear(z, self.gf_dim*8*4*4, 'g_h0_lin'),
-                        [-1, 4, 4, self.gf_dim * 8])
-        h0 = tf.nn.relu(self.g_bn0(h0, train=is_train))
+            h0 = tf.reshape(linear(z, self.gf_dim*8*4*4, 'g_h0_lin'),
+                            [-1, 4, 4, self.gf_dim * 8])
+            h0 = tf.nn.relu(self.g_bn0(h0, train=is_train))
 
-        h1 = conv2d_transpose(h0, [self.batch_size, 8, 8, self.gf_dim*4], name='g_h1')
-        h1 = tf.nn.relu(self.g_bn1(h1, train=is_train))
+            h1 = conv2d_transpose(h0, [self.batch_size, 8, 8, self.gf_dim*4], name='g_h1')
+            h1 = tf.nn.relu(self.g_bn1(h1, train=is_train))
 
-        h2 = conv2d_transpose(h1, [self.batch_size, 16, 16, self.gf_dim*2], name='g_h2')
-        h2 = tf.nn.relu(self.g_bn2(h2, train=is_train))
+            h2 = conv2d_transpose(h1, [self.batch_size, 16, 16, self.gf_dim*2], name='g_h2')
+            h2 = tf.nn.relu(self.g_bn2(h2, train=is_train))
 
-        h3 = conv2d_transpose(h2, [self.batch_size, 32, 32, self.gf_dim*1], name='g_h3')
-        h3 = tf.nn.relu(self.g_bn3(h3, train=is_train))
+            h3 = conv2d_transpose(h2, [self.batch_size, 32, 32, self.gf_dim*1], name='g_h3')
+            h3 = tf.nn.relu(self.g_bn3(h3, train=is_train))
 
-        h4 = conv2d_transpose(h3, [self.batch_size, 64, 64, 3], name='g_h4')
+            h4 = conv2d_transpose(h3, [self.batch_size, 64, 64, 3], name='g_h4')
 
-        return tf.nn.tanh(h4)
+            return tf.nn.tanh(h4)
 
     def generator_128(self, z, should_reuse=False, is_train=True):
-        if should_reuse:
-            tf.get_variable_scope().reuse_variables()
+        with tf.variable_scope('generator_128'):
+            if should_reuse:
+                tf.get_variable_scope().reuse_variables()
 
-        h0 = tf.reshape(linear(z, self.gf_dim*16*4*4, 'g_h0_lin'),
-                        [-1, 4, 4, self.gf_dim * 16])
-        h0 = tf.nn.relu(self.g_bn0(h0, train=is_train))
+            h0 = tf.reshape(linear(z, self.gf_dim*16*4*4, 'g_h0_lin'),
+                            [-1, 4, 4, self.gf_dim * 16])
+            h0 = tf.nn.relu(self.g_bn0(h0, train=is_train))
 
-        h1 = conv2d_transpose(h0, [self.batch_size, 8, 8, self.gf_dim*8], name='g_h1')
-        h1 = tf.nn.relu(self.g_bn1(h1, train=is_train))
+            h1 = conv2d_transpose(h0, [self.batch_size, 8, 8, self.gf_dim*8], name='g_h1')
+            h1 = tf.nn.relu(self.g_bn1(h1, train=is_train))
 
-        h2 = conv2d_transpose(h1, [self.batch_size, 16, 16, self.gf_dim*4], name='g_h2')
-        h2 = tf.nn.relu(self.g_bn2(h2, train=is_train))
+            h2 = conv2d_transpose(h1, [self.batch_size, 16, 16, self.gf_dim*4], name='g_h2')
+            h2 = tf.nn.relu(self.g_bn2(h2, train=is_train))
 
-        h3 = conv2d_transpose(h2, [self.batch_size, 32, 32, self.gf_dim*2], name='g_h3')
-        h3 = tf.nn.relu(self.g_bn3(h3, train=is_train))
+            h3 = conv2d_transpose(h2, [self.batch_size, 32, 32, self.gf_dim*2], name='g_h3')
+            h3 = tf.nn.relu(self.g_bn3(h3, train=is_train))
 
-        h4 = conv2d_transpose(h3, [self.batch_size, 64, 64, self.gf_dim*1], name='g_h4')
-        h4 = tf.nn.relu(self.g_bn4(h4, train=is_train))
+            h4 = conv2d_transpose(h3, [self.batch_size, 64, 64, self.gf_dim*1], name='g_h4')
+            h4 = tf.nn.relu(self.g_bn4(h4, train=is_train))
 
-        h5 = conv2d_transpose(h4, [self.batch_size, 128, 128, 3], name='g_h5')
+            h5 = conv2d_transpose(h4, [self.batch_size, 128, 128, 3], name='g_h5')
 
-        return tf.nn.tanh(h5)
+            return tf.nn.tanh(h5)
 
     def save(self, checkpoint_dir, step):
         if not os.path.exists(checkpoint_dir):
