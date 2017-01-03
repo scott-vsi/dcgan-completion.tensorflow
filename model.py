@@ -73,10 +73,10 @@ class DCGAN(object):
             tf.float32, [None] + self.image_shape, name='real_images')
         self.sample_images= tf.placeholder(
             tf.float32, [None] + self.image_shape, name='sample_images')
-        self.z = tf.nn.l2_normalize(tf.random_normal(shape=(self.batch_size, self.z_dim), mean=0.0, stddev=1.0), dim=1)
-        self.z_sum = tf.histogram_summary("z", self.z)
         self.z2 = tf.nn.l2_normalize(tf.random_normal(shape=(self.batch_size*2, self.z_dim), mean=0.0, stddev=1.0), dim=1)
         self.z2_sum = tf.histogram_summary("z2", self.z2)
+        self.z = self.z2[:self.batch_size, ...]
+        self.z_sum = tf.histogram_summary("z", self.z)
 
         sample_z = np.random.normal(0, 1, size=[self.sample_size, self.z_dim]) \
                      .astype(np.float32)
@@ -84,17 +84,20 @@ class DCGAN(object):
         self.sample_z = tf.get_variable('sample_z', initializer=sample_z)
 
         self.G = self.generator(self.z)
-        self.G2 = tf.concat(0, [self.generator(self.z2[:self.batch_size,...], should_reuse=True),
-            self.generator(self.z2[self.batch_size:,...], should_reuse=True)]) # ugh so much repetition
+        self.G2 = tf.concat(0, [
+            self.generator(self.z2[:self.batch_size,...], should_reuse=True), # == self.G
+            self.generator(self.z2[self.batch_size:,...], should_reuse=True)])
         self.D_real, self.D_logits_real = self.discriminator(self.images)
         self.D_fake, self.D_logits_fake = self.discriminator(self.G, should_reuse=True)
+        # ugh so much repetition
         self.D2_fake, self.D2_logits_fake = [tf.concat(0, [l0, l1]) for l0,l1 in 
             zip(self.discriminator(self.G2[:self.batch_size,...], should_reuse=True), 
                 self.discriminator(self.G2[self.batch_size:,...], should_reuse=True))]
 
         self.sampler = self.generator(self.sample_z, should_reuse=True, is_train=False)
         self.D_sample, self.D_logits_sample = self.discriminator(self.sampler, should_reuse=True, is_train=False)
-        self.normalize_sample_z = tf.assign(self.sample_z, tf.nn.l2_normalize(self.sample_z, dim=1))
+        # FIXME this should be run after self.sample_z but before self.contextual_loss
+        self.normalize_sample_z_op = tf.assign(self.sample_z, tf.nn.l2_normalize(self.sample_z, dim=1))
 
         self.D_real_sum = tf.histogram_summary("D_real", self.D_real)
         self.D_fake_sum = tf.histogram_summary("D_fake", self.D_fake)
@@ -138,7 +141,7 @@ class DCGAN(object):
             tf.reduce_sum(tf.contrib.layers.flatten(self.mask), 1)
         self.perceptual_loss = self.g_loss_sample
         self.complete_loss = (1.0-self.lam)*self.contextual_loss + self.lam*self.perceptual_loss
-        self.grad_complete_loss = tf.gradients(self.complete_loss, self.z)
+        self.grad_complete_loss = tf.gradients(self.complete_loss, self.z) # FIXME should this be self.sample_z
 
     def train(self, config):
         data = glob(os.path.join(config.dataset, "*/*.JPEG"))
@@ -306,7 +309,7 @@ Initializing a new one.
                 }
                 (_, sample_z, G_imgs, 
                     loss, contextual_loss, perceptual_loss, D_logits_sample) = self.sess.run([
-                        optim, self.normalize_sample_z, self.sampler, 
+                        optim, self.normalize_sample_z_op, self.sampler, 
                         self.complete_loss, self.contextual_loss, self.perceptual_loss, self.D_logits_sample], 
                         feed_dict=fd)
                 #print "contextual_loss: ", contextual_loss
