@@ -337,6 +337,16 @@ Initializing a new one.
         if should_reuse:
             tf.get_variable_scope().reuse_variables()
 
+        # switch for when doing completion (i think we want this)
+        if is_train:
+            # instance noise
+            additive_gaussian_noise = tf.random_normal(shape=(self.image_size,self.image_size), mean=0.0, stddev=0.04)
+            additive_gaussian_noise = tf.expand_dims(tf.expand_dims(additive_gaussian_noise, dim=0), dim=-1)
+            image = tf.add(image, tf.tile(additive_gaussian_noise, multiples=(self.batch_size,1,1,self.c_dim)))
+            max_per_image = tf.reduce_max(tf.abs(image), reduction_indices=(1,2,3))
+            max_per_image = tf.expand_dims(tf.expand_dims(tf.expand_dims(max_per_image, dim=-1), dim=-1), dim=-1)
+            image = tf.div(image, tf.tile(max_per_image, multiples=(1,self.image_size,self.image_size,self.c_dim)))
+
         h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
         h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim*2, name='d_h1_conv'), train=is_train))
         h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim*4, name='d_h2_conv'), train=is_train))
