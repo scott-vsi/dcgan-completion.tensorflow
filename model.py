@@ -343,6 +343,7 @@ Initializing a new one.
             # switch for when doing completion (i think we want this)
             if with_instance_noise:
                 # instance noise
+                # REVIEW should this be different for each image
                 additive_gaussian_noise = tf.random_normal(shape=(self.image_size,self.image_size), mean=0.0, stddev=0.04)
                 additive_gaussian_noise = tf.expand_dims(tf.expand_dims(additive_gaussian_noise, dim=0), dim=-1)
                 image = tf.add(image, tf.tile(additive_gaussian_noise, multiples=(self.batch_size,1,1,self.c_dim)))
