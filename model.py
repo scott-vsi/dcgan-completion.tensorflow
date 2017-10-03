@@ -50,7 +50,7 @@ class DCGAN(object):
 
         self.lam = lam
 
-        self.c_dim = 3
+        self.c_dim = 3 # FIXME should be c_dim
 
         # batch normalization : deals with poor initialization helps gradient flow
         self.d_bn1 = batch_norm(name='d_bn1')
@@ -209,6 +209,7 @@ Initializing a new one.
 
                 # Update G network
                 # ensure generator sees as many images as the discriminator
+                # REVIEW running g_optim twice, as in the original implementation, may accomplish essentially the same thing
                 _, errG, summary_str = self.sess.run([g_optim, self.g_loss, self.g_sum])
                 self.writer.add_summary(summary_str, counter)
 
